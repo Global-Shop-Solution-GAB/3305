@@ -1,0 +1,421 @@
+Program.Sub.ScreenSU.Start
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+
+
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Global.iErrHndl.Declare(Long)
+V.Local.sDir.Declare(String)
+V.Local.sDir2.Declare(String)
+V.Local.bExists.Declare(Boolean,False)
+V.Local.sDate.Declare(String)
+V.Local.sTime.Declare(String)
+V.Local.sFile.Declare(String)
+V.Local.sError.Declare(String)
+V.Local.sFileList.Declare(String)
+V.Local.iC.Declare(Long)
+V.Local.bEmp.Declare(Boolean,False)
+V.Local.sEmpList.Declare(String)
+
+F.ODBC.Connection!conX.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass)
+'open up import file directory
+F.Intrinsic.String.Concat(V.Caller.FilesDir,"\Import\",V.Local.sDir)
+F.Intrinsic.File.DirExists(V.Local.sDir,V.Local.bExists)
+F.Intrinsic.Control.If(V.Local.bExists,<>,True)
+	F.Intrinsic.File.CreateDir(V.Local.sDir)
+F.Intrinsic.Control.EndIf
+'open up the logging file
+F.Intrinsic.String.Stripcharacters(V.Ambient.Date,V.Local.sDate)
+F.Intrinsic.String.Stripcharacters(V.Ambient.Time,V.Local.sTime)
+F.Intrinsic.String.Concat(V.Caller.FilesDir,"\Import\Logs",V.Local.sDir2)
+F.Intrinsic.File.DirExists(V.Local.sDir2,V.Local.bExists)
+F.Intrinsic.Control.If(V.Local.bExists,<>,True)
+	F.Intrinsic.File.CreateDir(V.Local.sDir2)
+F.Intrinsic.Control.EndIf
+F.Intrinsic.String.Concat(V.Local.sDir2,"\Employee_Imports",V.Local.sDate,"_",V.Local.sTime,".log",V.Local.sFile)
+F.Intrinsic.File.GetHandle(V.Global.iErrHndl)
+F.Intrinsic.File.Exists(V.Local.sFile,V.Local.bExists)
+F.Intrinsic.Control.If(V.Local.bExists,=,True)
+	F.Intrinsic.File.OpenForAppend(V.Local.sFile,V.Global.iErrHndl)
+F.Intrinsic.Control.Else
+	F.Intrinsic.File.OpenForWrite(V.Local.sFile,V.Global.iErrHndl)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.String.Concat("Logging file opened at ",V.Ambient.Now,V.Local.sError)
+F.Intrinsic.Control.CallSub(Write_error,"sLine",V.Local.sError)
+F.Intrinsic.Control.CallSub(Write_error,"sLine","Gathering file list.")
+
+F.Intrinsic.File.GetFileList(V.Local.sDir,V.Local.sFileList)
+F.Intrinsic.String.Split(V.Local.sFileList,":",V.Local.sFileList)
+F.Intrinsic.Control.For(V.Local.iC,0,V.Local.sFileList.UBound,1)
+	'create lists of employee records
+	F.Intrinsic.String.IsInString(V.Local.sFileList(V.Local.iC),"employee",True,V.Local.bEmp)
+	F.Intrinsic.Control.If(V.Local.bEmp,=,True)
+		F.Intrinsic.String.Concat(V.Local.sEmpList,V.Local.sFileList(V.Local.iC),":",V.Local.sEmpList)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Next(V.Local.iC)
+
+F.Intrinsic.Control.CallSub(Write_error,"sLine","Beginning import of employee files.")
+F.Intrinsic.Control.CallSub(Emp_upload,"sEmpList",V.Local.sEmpList)
+F.Intrinsic.Control.CallSub(Write_error,"sLine","Employee files imported successfully.")
+
+
+F.Intrinsic.File.CloseFile(V.Global.iErrHndl)
+
+F.ODBC.Connection!conX.Close
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_EMPLOYEE_IMPORT.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.Control.CallSub(Write_error,"sLine",V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+Program.Sub.Main.End
+
+Program.Sub.Write_Error.Start
+F.Intrinsic.Control.SetErrorHandler("Write_Error_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sLine.Declare(String)
+
+V.Local.sLine.Set(V.Args.sLine)
+
+F.Intrinsic.File.WriteLine(V.Global.iErrHndl,V.Local.sLine)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Write_Error_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_EMPLOYEE_IMPORT.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.Control.End
+Function.Intrinsic.Control.EndIf
+
+Program.Sub.Write_Error.End
+
+Program.Sub.Emp_Upload.Start
+F.Intrinsic.Control.SetErrorHandler("emp_upload_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sEmpList.Declare(String)
+V.Local.sDir.Declare(String)
+V.Local.sFile.Declare(String)
+V.Local.sFileName.Declare(String)
+V.Local.sRecord.Declare(String)
+V.Local.sBackup.Declare(String)
+V.Local.sFQN.Declare(String)
+V.Local.sFQN2.Declare(String)
+V.Local.sDate.Declare(String)
+V.Local.sTime.Declare(String)
+V.Local.bExists.Declare(Boolean)
+V.Local.iC.Declare(Long)
+V.Local.iC2.Declare(Long)
+V.Local.iRet.Declare(Long)
+V.Local.iUB.Declare(Long)
+V.Local.iUB2.Declare(Long)
+V.Local.sSQL.Declare(String)
+V.Local.upload.Declare(String)
+V.Local.sHold.Declare(String)
+V.Local.sFiledir.Declare(String)
+V.Global.sUpload.Declare(String)
+V.Local.sParam.Declare(String)
+
+V.Local.sEmpList.Set(V.Args.sEmpList)
+
+
+F.Intrinsic.String.Split(V.Local.sEmpList,":",V.Local.sEmpList)
+F.Intrinsic.Math.Sub(V.Local.sEmpList.UBound,1,V.Local.iUB)
+
+F.Intrinsic.Control.If(V.Local.iUB,=,-1)
+	F.Intrinsic.Control.CallSub(Write_error,"sLine","No employee imports were found.")
+	F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.For(V.Local.iC,0,V.Local.iUB,1)
+	V.Local.sFile.Set(V.Local.sEmpList(V.Local.iC))
+	V.Local.sFileName.Set(V.Local.sEmpList(V.Local.iC))
+	F.Intrinsic.String.Concat(V.Caller.FilesDir,"\Import\",V.Local.sFile,V.Local.sFQN)
+	F.Intrinsic.File.Exists(V.Local.sFQN,V.Local.bExists)
+	F.Intrinsic.Control.If(V.Local.bExists,=,True)
+		F.Intrinsic.File.File2String(V.Local.sFQN,V.Local.sFile)
+		F.Intrinsic.String.Split(V.Local.sFile,V.Ambient.NewLine,V.Local.sFile)
+		F.Intrinsic.Math.Sub(V.Local.sFile.UBound,1,V.Local.iUB2)
+
+		F.Intrinsic.Control.For(V.Local.iC2,1,V.Local.iUB2,1)
+'F.Intrinsic.Debug.InvokeDebugger
+'F.Intrinsic.Debug.Stop
+			V.Local.sRecord.Set(V.Local.sFile(V.Local.iC2))
+			F.Intrinsic.String.SplitCSV(V.Local.sRecord,V.Local.sRecord)
+			F.Intrinsic.String.LPad(V.Local.sRecord(0),"0",5,V.Local.sRecord(0))
+			F.Intrinsic.String.Left(V.Local.sRecord(0),5,V.Local.sRecord(0))
+			F.Intrinsic.String.Concat("Select * From Employee_Mstr Where Employee = '",V.Local.sRecord(0),"'",V.Local.sSQL)
+			F.ODBC.Connection!conX.OpenRecordsetRW("rst",V.Local.sSQL)
+			F.Intrinsic.Control.If(V.ODBC.conX!rst.EOF,=,False)
+'=============================
+'			UPDATE EXISTING EMPLOYEE
+'=============================
+				'Name
+				F.Intrinsic.Control.If(V.Local.sRecord(1).Trim,<>,"")
+					F.Intrinsic.String.RPad(V.Local.sRecord(1)," ",30,V.Local.sRecord(1))
+					F.Intrinsic.String.Left(V.Local.sRecord(1),30,V.Local.sRecord(1))
+					F.ODBC.conX!rst.Set!NAME(V.Local.sRecord(1))
+				F.Intrinsic.Control.EndIf
+				'Shift
+				F.Intrinsic.Control.If(V.Local.sRecord(2).Trim,<>,"")
+					F.Intrinsic.String.RPad(V.Local.sRecord(2)," ",1,V.Local.sRecord(2))
+					F.Intrinsic.String.Left(V.Local.sRecord(2),1,V.Local.sRecord(2))
+					F.ODBC.conX!rst.Set!SHIFT(V.Local.sRecord(2))
+				F.Intrinsic.Control.EndIf
+				'Department
+				F.Intrinsic.Control.If(V.Local.sRecord(3).Trim,<>,"")
+					F.Intrinsic.String.RPad(V.Local.sRecord(3)," ",4,V.Local.sRecord(3))
+					F.Intrinsic.String.Left(V.Local.sRecord(3),4,V.Local.sRecord(3))
+					F.ODBC.conX!rst.Set!DEPT_EMPLOYEE(V.Local.sRecord(3))
+				F.Intrinsic.Control.EndIf
+				'Balancing Group
+				F.Intrinsic.Control.If(V.Local.sRecord(4).Trim,<>,"")
+					F.Intrinsic.String.RPad(V.Local.sRecord(4)," ",8,V.Local.sRecord(4))
+					F.Intrinsic.String.Left(V.Local.sRecord(4),8,V.Local.sRecord(4))
+					F.ODBC.conX!rst.Set!PR_BALANCE_GROUP(V.Local.sRecord(4))
+				F.Intrinsic.Control.EndIf
+				'Pay Rate
+				F.Intrinsic.Control.If(V.Local.sRecord(5).Trim,<>,"")
+					F.Intrinsic.String.LPad(V.Local.sRecord(5)," ",12,V.Local.sRecord(5))
+					F.Intrinsic.String.Left(V.Local.sRecord(5),12,V.Local.sRecord(5))
+					F.ODBC.conX!rst.Set!RATE(V.Local.sRecord(5))
+				F.Intrinsic.Control.EndIf
+				'Differential
+				F.Intrinsic.Control.If(V.Local.sRecord(6).Trim,<>,"")
+					F.Intrinsic.String.LPad(V.Local.sRecord(6)," ",6,V.Local.sRecord(6))
+					F.Intrinsic.String.Left(V.Local.sRecord(6),6,V.Local.sRecord(6))
+					F.ODBC.conX!rst.Set!DIFFERENTIAL(V.Local.sRecord(6))
+				F.Intrinsic.Control.EndIf
+				'Termination Date
+				F.Intrinsic.Control.If(V.Local.sRecord(7).Trim,<>,"")
+					F.Intrinsic.String.Format(V.Local.sRecord(7),"MMDDYY",V.Local.sRecord(7))
+					F.ODBC.conX!rst.Set!DATE_TERMINATION(V.Local.sRecord(7))
+				F.Intrinsic.Control.EndIf
+				'Marital Status
+				F.Intrinsic.Control.If(V.Local.sRecord(8).Trim,<>,"")
+					F.Intrinsic.String.RPad(V.Local.sRecord(8)," ",1,V.Local.sRecord(8))
+					F.Intrinsic.String.Left(V.Local.sRecord(8),1,V.Local.sRecord(8))
+					F.ODBC.conX!rst.Set!MARITAL_STATUS(V.Local.sRecord(8))
+				F.Intrinsic.Control.EndIf
+				'Pay Type
+				F.Intrinsic.Control.If(V.Local.sRecord(9).Trim,<>,"")
+					F.Intrinsic.String.RPad(V.Local.sRecord(9)," ",1,V.Local.sRecord(9))
+					F.Intrinsic.String.Left(V.Local.sRecord(9),1,V.Local.sRecord(9))
+					F.ODBC.conX!rst.Set!PAY_TYPE(V.Local.sRecord(9))
+				F.Intrinsic.Control.EndIf
+				'Update table
+				F.ODBC.conX!rst.Update
+				'Log
+				Function.Intrinsic.String.Concat("File :",V.Local.sEmpList(v.Local.iC)," Employee ",V.Local.sRecord(0)," already exists, information updated successfully. ",V.Local.sError)
+				F.Intrinsic.Control.CallSub(Write_error,"sLine",V.Local.sError)
+			F.Intrinsic.Control.Else
+'=============================
+'			ADD NEW EMPLOYEE
+'=============================
+'F.Intrinsic.Debug.InvokeDebugger
+'F.Intrinsic.Debug.Stop
+				'employee number
+				V.Local.upload.Set(V.Local.sRecord(0))
+				'Name
+				F.Intrinsic.String.RPad(V.Local.sRecord(1)," ",30,V.Local.sRecord(1))
+				F.Intrinsic.String.Left(V.Local.sRecord(1),30,V.Local.sRecord(1))
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sRecord(1),V.Local.upload)
+				'Address
+				F.Intrinsic.String.RPad(""," ",30,V.Local.sHold)
+				F.Intrinsic.String.Left(V.Local.sHold,30,V.Local.sHold)
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sHold,V.Local.upload)
+				'City
+				F.Intrinsic.String.RPad(""," ",24,V.Local.sHold)
+				F.Intrinsic.String.Left(V.Local.sHold,24,V.Local.sHold)
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sHold,V.Local.upload)
+				'State
+				F.Intrinsic.String.RPad(""," ",2,V.Local.sHold)
+				F.Intrinsic.String.Left(V.Local.sHold,2,V.Local.sHold)
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sHold,V.Local.upload)
+				'Zipcode
+				F.Intrinsic.String.RPad(""," ",9,V.Local.sHold)
+				F.Intrinsic.String.Left(V.Local.sHold,9,V.Local.sHold)
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sHold,V.Local.upload)
+				'Sex
+				F.Intrinsic.String.RPad(""," ",1,V.Local.sHold)
+				F.Intrinsic.String.Left(V.Local.sHold,1,V.Local.sHold)
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sHold,V.Local.upload)
+				'SSN
+				F.Intrinsic.String.RPad(""," ",9,V.Local.sHold)
+				F.Intrinsic.String.Left(V.Local.sHold,9,V.Local.sHold)
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sHold,V.Local.upload)
+				'Hire Date
+				F.Intrinsic.String.Rpad("0","0",6,V.Local.sHold)
+				F.Intrinsic.String.Left(V.Local.sHold,6,V.Local.sHold)
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sHold,V.Local.upload)
+				'Termination Date
+				F.Intrinsic.Control.If(V.Local.sRecord(7),<>,"")
+					F.Intrinsic.String.Format(V.Local.sRecord(7),"MMDDYY",V.Local.sRecord(7))
+					F.Intrinsic.String.Left(V.Local.sRecord(7),6,V.Local.sRecord(7))
+					F.Intrinsic.String.Concat(V.Local.upload,V.Local.sRecord(7),V.Local.upload)
+				F.Intrinsic.Control.Else
+					F.Intrinsic.String.Rpad("0","0",6,V.Local.sHold)
+					F.Intrinsic.String.Left(V.Local.sHold,6,V.Local.sHold)
+					F.Intrinsic.String.Concat(V.Local.upload,V.Local.sHold,V.Local.upload)
+				F.Intrinsic.Control.EndIf
+				'Birthday
+				F.Intrinsic.String.Rpad("0","0",6,V.Local.sHold)
+				F.Intrinsic.String.Left(V.Local.sHold,6,V.Local.sHold)
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sHold,V.Local.upload)
+				'Phone
+				F.Intrinsic.String.RPad(""," ",10,V.Local.sHold)
+				F.Intrinsic.String.Left(V.Local.sHold,10,V.Local.sHold)
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sHold,V.Local.upload)
+				'Employee Last Raise Date
+				F.Intrinsic.String.Rpad("0","0",6,V.Local.sHold)
+				F.Intrinsic.String.Left(V.Local.sHold,6,V.Local.sHold)
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sHold,V.Local.upload)
+				'Previous Rate
+				F.Intrinsic.String.LPad("0","0",16,V.Local.sHold)
+				F.Intrinsic.String.Left(V.Local.sHold,16,V.Local.sHold)
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sHold,V.Local.upload)
+				'Alpha Sort
+				F.Intrinsic.String.RPad(""," ",12,V.Local.sHold)
+				F.Intrinsic.String.Left(V.Local.sHold,12,V.Local.sHold)
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sHold,V.Local.upload)
+				'Employee initials
+				F.Intrinsic.String.RPad(""," ",3,V.Local.sHold)
+				F.Intrinsic.String.Left(V.Local.sHold,3,V.Local.sHold)
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sHold,V.Local.upload)
+				'Comment1
+				F.Intrinsic.String.RPad(""," ",40,V.Local.sHold)
+				F.Intrinsic.String.Left(V.Local.sHold,40,V.Local.sHold)
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sHold,V.Local.upload)
+				'Comment2
+				F.Intrinsic.String.RPad(""," ",30,V.Local.sHold)
+				F.Intrinsic.String.Left(V.Local.sHold,30,V.Local.sHold)
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sHold,V.Local.upload)
+				'Comment3
+				F.Intrinsic.String.RPad(""," ",20,V.Local.sHold)
+				F.Intrinsic.String.Left(V.Local.sHold,20,V.Local.sHold)
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sHold,V.Local.upload)
+				'Department
+				F.Intrinsic.String.RPad(V.Local.sRecord(3)," ",4,V.Local.sRecord(3))
+				F.Intrinsic.String.Left(V.Local.sRecord(3),4,V.Local.sRecord(3))
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sRecord(3),V.Local.upload)
+				'Worker Comp
+				F.Intrinsic.String.RPad(""," ",4,V.Local.sHold)
+				F.Intrinsic.String.Left(V.Local.sHold,4,V.Local.sHold)
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sHold,V.Local.upload)
+				'Shift
+				F.Intrinsic.String.RPad(V.Local.sRecord(2)," ",1,V.Local.sRecord(2))
+				F.Intrinsic.String.Left(V.Local.sRecord(2),1,V.Local.sRecord(2))
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sRecord(2),V.Local.upload)
+				'Pay Rate
+				F.Intrinsic.String.LPad(V.Local.sRecord(5)," ",16,V.Local.sRecord(5))
+				F.Intrinsic.String.Left(V.Local.sRecord(5),16,V.Local.sRecord(5))
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sRecord(5),V.Local.upload)
+				'Differential
+				F.Intrinsic.String.LPad(V.Local.sRecord(6)," ",16,V.Local.sRecord(6))
+				F.Intrinsic.String.Left(V.Local.sRecord(6),16,V.Local.sRecord(6))
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sRecord(6),V.Local.upload)
+				'Pay Frequency
+				F.Intrinsic.String.RPad(""," ",1,V.Local.sHold)
+				F.Intrinsic.String.Left(V.Local.sHold,1,V.Local.sHold)
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sHold,V.Local.upload)
+				'Pay Type
+				F.Intrinsic.String.RPad(V.Local.sRecord(9)," ",1,V.Local.sRecord(9))
+				F.Intrinsic.String.Left(V.Local.sRecord(9),1,V.Local.sRecord(9))
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sRecord(9),V.Local.upload)
+				'Next fields total spaces
+				F.Intrinsic.String.RPad(""," ",39,V.Local.sHold)
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sHold,V.Local.upload)
+				'Marital Status
+				F.Intrinsic.String.RPad(V.Local.sRecord(8)," ",1,V.Local.sRecord(8))
+				F.Intrinsic.String.Left(V.Local.sRecord(8),1,V.Local.sRecord(8))
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sRecord(8),V.Local.upload)
+				'Next fields total spaces
+
+				F.Intrinsic.String.RPad(""," ",939,V.Local.sHold)
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sHold,V.Local.upload)
+				'Balancing Group
+				F.Intrinsic.String.RPad(V.Local.sRecord(4)," ",8,V.Local.sRecord(4))
+				F.Intrinsic.String.Left(V.Local.sRecord(4),8,V.Local.sRecord(4))
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sRecord(4),V.Local.upload)
+				'Next fields total spaces
+				F.Intrinsic.String.RPad(""," ",111,V.Local.sHold)
+				F.Intrinsic.String.Concat(V.Local.upload,V.Local.sHold,V.Local.upload)
+'spaces
+'34 -42 =89
+'43 - 51 = 144
+'52 - 60 = 144
+'61-69=144
+'70 - 78 = 144
+'79-87 = 144
+' 88 - 94 = 130
+'total spaces=939
+
+'96 - 104 = 85
+'105 - 113 = 20
+'114 - 115 = 6
+				
+				
+			
+			F.Intrinsic.String.Concat(V.local.upload,V.Ambient.NewLine,V.Global.supload,V.Global.sUpload)
+			F.Intrinsic.Debug.Stop
+				'Log
+				F.Intrinsic.String.Concat("File :",V.Local.sEmpList(v.Local.iC)," Employee ",V.Local.sRecord(0)," written to Employee Master successfully",V.Local.sError)
+				F.Intrinsic.Control.CallSub(Write_error,"sLine",V.Local.sError)
+			F.Intrinsic.Control.EndIf
+			F.ODBC.conX!rst.Close
+		F.Intrinsic.Control.Next(V.Local.iC2)
+
+		'rename and move the file to indicate completed import
+		F.Intrinsic.String.Concat(V.Caller.FilesDir,"\Import\History\",V.Local.sDir)
+		F.Intrinsic.File.DirExists(V.Local.sDir,V.Local.bExists)
+		F.Intrinsic.Control.If(V.Local.bExists,<>,True)
+			F.Intrinsic.File.CreateDir(V.Local.sDir)
+		F.Intrinsic.Control.EndIf
+		F.Intrinsic.String.Stripcharacters(V.Ambient.Date,V.Local.sDate)
+		F.Intrinsic.String.Stripcharacters(V.Ambient.Time,V.Local.sTime)
+		F.Intrinsic.String.Concat("EMPLOYEE",V.Local.sDate,"_",V.Local.sTime,".csv",V.Local.sBackup)
+		F.Intrinsic.String.Concat(V.Local.sDir,V.Local.sBackup,V.Local.sFQN2)
+		F.Intrinsic.File.MoveFile(V.Local.sFQN,V.Local.sFQN2,V.Local.iRet)
+		F.Intrinsic.Control.If(V.Local.iRet,=,0)
+			F.Intrinsic.String.Concat("Error: Renaming file ",V.Local.sFQN," to ",V.Local.sFQN2," failed.",V.Local.sError)
+			F.Intrinsic.Control.CallSub(Write_error,"sLine",V.Local.sError)
+		F.Intrinsic.Control.Else
+			F.Intrinsic.String.Concat("Renaming file ",V.Local.sFQN," to ",V.Local.sFQN2," succeeded.",V.Local.sError)
+			F.Intrinsic.Control.CallSub(Write_error,"sLine",V.Local.sError)
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.Next(V.Local.iC)
+'F.Intrinsic.Debug.InvokeDebugger
+'F.Intrinsic.Debug.Stop
+F.Intrinsic.String.Concat(V.Caller.FilesDir,"\","EMPLOYEE.TXT",V.Local.sFiledir)
+F.Intrinsic.File.String2File(V.Local.sFiledir,V.Global.sUpload)
+F.Intrinsic.String.Concat("51","!*!","NS",V.Local.sParam)
+
+'F.Intrinsic.Debug.CallWrapperDebugEnable
+F.Global.General.CallWrapperSync(6006,V.Local.sParam)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("emp_upload_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_EMPLOYEE_IMPORT.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.Control.CallSub(Write_error,"sLine",V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+Program.Sub.Emp_Upload.End
+
+
